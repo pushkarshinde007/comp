@@ -45,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.cors_origins,
+            allow_origin_regex=r"https://.*\.vercel\.app",
             allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             allow_headers=["*"],
@@ -52,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Register routes
     @app.get("/", tags=["Root"])
+    @app.get("/api", tags=["Root"], include_in_schema=False)
     def root():
         return {
             "service": settings.PROJECT_NAME,

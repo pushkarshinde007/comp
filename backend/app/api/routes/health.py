@@ -11,6 +11,12 @@ router = APIRouter(tags=["Health"])
     summary="Health check",
     description="Returns service health status without disclosing internal configuration or secrets."
 )
+@router.get(
+    "/api/health",
+    response_model=HealthResponse,
+    summary="Health check under /api prefix",
+    include_in_schema=False,
+)
 def get_health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     return HealthResponse(
         status="ok",

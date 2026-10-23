@@ -1,7 +1,24 @@
 import { RealGeminiAnalysis } from "../types/incident";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://127.0.0.1:8000";
+/**
+ * Resolves the backend base URL dynamically:
+ * 1. Reads process.env.BACKEND_URL when executing in Vercel Server Functions (injected by Vercel service binding).
+ * 2. Reads process.env.NEXT_PUBLIC_API_URL if explicitly configured.
+ * 3. Uses relative path "" in the browser under Vercel unified domain routing (/api/(.*) rewrites to backend service).
+ * 4. Falls back to http://127.0.0.1:8000 for local development.
+ */
+export function getBackendBaseUrl(): string {
+  if (typeof window === "undefined" && process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL.replace(/\/$/, "");
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    return "";
+  }
+  return "http://127.0.0.1:8000";
+}
 
 export interface AnalyzeIssueParams {
   description?: string;
@@ -51,7 +68,12 @@ export async function requestGeminiAnalysis(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s client timeout
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/analyze-issue`, {
+    const baseUrl = getBackendBaseUrl();
+    const endpoint = baseUrl
+      ? `${baseUrl}/api/v1/analyze-issue`
+      : "/api/v1/analyze-issue";
+
+    const response = await fetch(endpoint, {
       method: "POST",
       body: formData,
       signal: controller.signal,

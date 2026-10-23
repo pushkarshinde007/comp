@@ -1,0 +1,12 @@
+{
+  "harness_version": "1.0.0",
+  "mode": "DISCOVERY",
+  "sprint": 0,
+  "current_stage": "discovery",
+  "attempts": {},
+  "breaker": {
+    "tripped": false,
+    "reason": null
+  },
+  "updated_at": "2026-10-23T13:34:40+05:30"
+}

@@ -1,0 +1,12 @@
+[project]
+name = "civicsignal-backend"
+version = "0.1.0"
+description = "CivicSignal AI - Backend API Foundation"
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"

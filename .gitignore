@@ -1,0 +1,73 @@
+# ==========================================
+# CivicSignal AI - Root .gitignore
+# ==========================================
+
+# Secrets and environment files (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.p12
+service-account*.json
+firebase-adminsdk*.json
+credentials.json
+
+# Node.js and Next.js
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+frontend/out/
+build/
+frontend/build/
+.npm-cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Python virtual environments & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/.venv/
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing and coverage
+.pytest_cache/
+backend/.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Vercel and cloud artifacts
+.vercel

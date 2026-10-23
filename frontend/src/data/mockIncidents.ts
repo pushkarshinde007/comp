@@ -1,4 +1,5 @@
 import { Incident, IncidentCategory } from "../types/incident";
+import { calculatePriorityScore } from "../lib/civicIntelligence";
 
 export interface CategoryMeta {
   label: string;
@@ -46,7 +47,7 @@ export const CATEGORY_DEFINITIONS: Record<IncidentCategory, CategoryMeta> = {
   },
 };
 
-export const INITIAL_MOCK_INCIDENTS: Incident[] = [
+const BASE_INCIDENTS: Omit<Incident, "priorityScore">[] = [
   {
     id: "inc-001",
     trackingCode: "CIV-8921",
@@ -63,13 +64,32 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     upvotes: 42,
     assignedDepartment: "Municipal Water Works - Emergency Unit 4",
     reviewNotes: "Dispatched crew at 07:30. Water valve isolated.",
-    aiAssessment: {
-      confidence: 0.96,
-      suggestedCategory: "water_utility",
-      urgencyReasoning:
-        "Structural risk to pavement and imminent commercial property damage.",
-      duplicateRisk: "none",
-    },
+    duplicateAssessment: { risk: "none" },
+    auditTrail: [
+      {
+        id: "audit-001-1",
+        timestamp: "2026-10-23T07:15:00Z",
+        actor: "Resident #418 (Web Client)",
+        action: "SUBMITTED",
+        summary: "Initial citizen incident report filed with high-urgency water hazard flag.",
+      },
+      {
+        id: "audit-001-2",
+        timestamp: "2026-10-23T07:20:00Z",
+        actor: "CivicSignal AI Engine",
+        action: "PRIORITY_RECALCULATED",
+        summary: "Priority score evaluated to 99/100 (Critical Queue) due to water main hazard.",
+      },
+      {
+        id: "audit-001-3",
+        timestamp: "2026-10-23T07:30:00Z",
+        actor: "Dispatcher #12 (Municipal Admin)",
+        action: "STATUS_CHANGED",
+        summary: "Status updated to Dispatched. Emergency Unit 4 deployed.",
+        previousValue: "pending_review",
+        newValue: "dispatched",
+      },
+    ],
   },
   {
     id: "inc-002",
@@ -87,13 +107,34 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     upvotes: 19,
     assignedDepartment: "Dept of Transportation - Road Repair",
     reviewNotes: "Prioritized for cold-patch emergency repair today.",
-    aiAssessment: {
-      confidence: 0.92,
-      suggestedCategory: "road_hazard",
-      urgencyReasoning:
-        "High vehicular traffic speed increases risk of collision or loss of control.",
-      duplicateRisk: "possible",
+    duplicateAssessment: {
+      risk: "possible",
+      matchedIncident: {
+        id: "inc-002-prev",
+        trackingCode: "CIV-8899",
+        title: "Expressway lane pothole",
+        similarityScore: 68,
+        reason: "Related roadway defect reported within 0.5 miles on Oakway Expressway.",
+      },
     },
+    auditTrail: [
+      {
+        id: "audit-002-1",
+        timestamp: "2026-10-23T08:04:00Z",
+        actor: "CommuterTransit #88",
+        action: "SUBMITTED",
+        summary: "Citizen road hazard report filed with photo evidence.",
+      },
+      {
+        id: "audit-002-2",
+        timestamp: "2026-10-23T08:15:00Z",
+        actor: "Triage Reviewer #07",
+        action: "STATUS_CHANGED",
+        summary: "Verified hazard through highway traffic camera. Scheduled for patch crew.",
+        previousValue: "pending_review",
+        newValue: "verified",
+      },
+    ],
   },
   {
     id: "inc-003",
@@ -110,13 +151,16 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     reportedBy: "SchoolZoneWatch",
     upvotes: 31,
     assignedDepartment: "Public Lighting Division",
-    aiAssessment: {
-      confidence: 0.89,
-      suggestedCategory: "electrical_lighting",
-      urgencyReasoning:
-        "Proximity to active school crosswalk elevates risk profile.",
-      duplicateRisk: "none",
-    },
+    duplicateAssessment: { risk: "none" },
+    auditTrail: [
+      {
+        id: "audit-003-1",
+        timestamp: "2026-10-23T09:40:00Z",
+        actor: "SchoolZoneWatch",
+        action: "SUBMITTED",
+        summary: "Community alert filed for dark school crossing corridor.",
+      },
+    ],
   },
   {
     id: "inc-004",
@@ -133,13 +177,16 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     reportedBy: "CivicVolunteer #12",
     upvotes: 8,
     assignedDepartment: "Environmental Protection Bureau",
-    aiAssessment: {
-      confidence: 0.85,
-      suggestedCategory: "sanitation_dumping",
-      urgencyReasoning:
-        "Hazardous chemical markers require HazMat-certified inspection.",
-      duplicateRisk: "none",
-    },
+    duplicateAssessment: { risk: "none" },
+    auditTrail: [
+      {
+        id: "audit-004-1",
+        timestamp: "2026-10-23T10:12:00Z",
+        actor: "CivicVolunteer #12",
+        action: "SUBMITTED",
+        summary: "Greenway dumping report filed.",
+      },
+    ],
   },
   {
     id: "inc-005",
@@ -157,13 +204,34 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     upvotes: 54,
     assignedDepartment: "Traffic Systems Management",
     reviewNotes: "Field engineer dispatched to reset signal control cabinet.",
-    aiAssessment: {
-      confidence: 0.94,
-      suggestedCategory: "public_safety",
-      urgencyReasoning:
-        "Critical pedestrian conflict area with high hourly foot traffic.",
-      duplicateRisk: "possible",
+    duplicateAssessment: {
+      risk: "possible",
+      matchedIncident: {
+        id: "inc-005-prev",
+        trackingCode: "CIV-8910",
+        title: "Traffic light glitch Broad St",
+        similarityScore: 72,
+        reason: "Earlier signal timing report logged at adjacent intersection.",
+      },
     },
+    auditTrail: [
+      {
+        id: "audit-005-1",
+        timestamp: "2026-10-23T11:05:00Z",
+        actor: "MetroRider #902",
+        action: "SUBMITTED",
+        summary: "Urgent pedestrian signal deadlock reported.",
+      },
+      {
+        id: "audit-005-2",
+        timestamp: "2026-10-23T11:15:00Z",
+        actor: "Traffic Ops Lead",
+        action: "STATUS_CHANGED",
+        summary: "Assigned to Traffic Systems emergency technician. En route.",
+        previousValue: "pending_review",
+        newValue: "in_progress",
+      },
+    ],
   },
   {
     id: "inc-006",
@@ -181,12 +249,25 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     upvotes: 14,
     assignedDepartment: "Parks & Recreation Maintenance",
     reviewNotes: "Area taped off, replacement beam installed, safety certified.",
-    aiAssessment: {
-      confidence: 0.88,
-      suggestedCategory: "parks_infrastructure",
-      urgencyReasoning: "Fall hazard for children; non-fatal structural issue.",
-      duplicateRisk: "none",
-    },
+    duplicateAssessment: { risk: "none" },
+    auditTrail: [
+      {
+        id: "audit-006-1",
+        timestamp: "2026-10-22T14:30:00Z",
+        actor: "ParentCouncil",
+        action: "SUBMITTED",
+        summary: "Playground equipment safety hazard reported.",
+      },
+      {
+        id: "audit-006-2",
+        timestamp: "2026-10-22T16:00:00Z",
+        actor: "Parks Crew Lead",
+        action: "STATUS_CHANGED",
+        summary: "Timber frame rebuilt and certified. Incident closed.",
+        previousValue: "in_progress",
+        newValue: "resolved",
+      },
+    ],
   },
   {
     id: "inc-007",
@@ -203,12 +284,16 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     reportedBy: "CyclistAlliance",
     upvotes: 5,
     assignedDepartment: "Drainage & Sewer Division",
-    aiAssessment: {
-      confidence: 0.81,
-      suggestedCategory: "water_utility",
-      urgencyReasoning: "Localized surface pooling; low structural impact.",
-      duplicateRisk: "none",
-    },
+    duplicateAssessment: { risk: "none" },
+    auditTrail: [
+      {
+        id: "audit-007-1",
+        timestamp: "2026-10-23T11:45:00Z",
+        actor: "CyclistAlliance",
+        action: "SUBMITTED",
+        summary: "Bicycle lane drainage overflow report filed.",
+      },
+    ],
   },
   {
     id: "inc-008",
@@ -225,11 +310,27 @@ export const INITIAL_MOCK_INCIDENTS: Incident[] = [
     reportedBy: "SeniorActionNetwork",
     upvotes: 27,
     assignedDepartment: "Dept of Transportation - Striping",
-    aiAssessment: {
-      confidence: 0.79,
-      suggestedCategory: "road_hazard",
-      urgencyReasoning: "Scheduled maintenance backlog candidate.",
-      duplicateRisk: "none",
-    },
+    duplicateAssessment: { risk: "none" },
+    auditTrail: [
+      {
+        id: "audit-008-1",
+        timestamp: "2026-10-23T12:10:00Z",
+        actor: "SeniorActionNetwork",
+        action: "SUBMITTED",
+        summary: "Senior center crosswalk paint visibility complaint logged.",
+      },
+    ],
   },
 ];
+
+// Enrich all incidents with deterministic priority scores
+export const INITIAL_MOCK_INCIDENTS: Incident[] = BASE_INCIDENTS.map((inc) => ({
+  ...inc,
+  priorityScore: calculatePriorityScore(
+    inc.category,
+    inc.severity,
+    inc.upvotes,
+    inc.locationLabel,
+    inc.reportedAt
+  ),
+}));

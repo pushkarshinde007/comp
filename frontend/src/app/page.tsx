@@ -16,8 +16,10 @@ import {
   IncidentStatus,
   ActiveView,
   RealGeminiAnalysis,
+  AuditEvent,
 } from "../types/incident";
 import { INITIAL_MOCK_INCIDENTS } from "../data/mockIncidents";
+import { createAuditEvent } from "../lib/civicIntelligence";
 import {
   MapPin,
   AlertTriangle,
@@ -59,10 +61,22 @@ export default function DashboardPage() {
     setIncidents((prev) =>
       prev.map((inc) => {
         if (inc.id === incidentId) {
+          const prevStatus = inc.status;
+          const statusEvent: AuditEvent = createAuditEvent(
+            "STATUS_CHANGED",
+            "Municipal Dispatcher #104",
+            notes
+              ? `Status changed from ${prevStatus} to ${newStatus}. Note: "${notes}"`
+              : `Status changed from ${prevStatus} to ${newStatus}.`,
+            prevStatus,
+            newStatus
+          );
+
           const updated: Incident = {
             ...inc,
             status: newStatus,
             reviewNotes: notes || inc.reviewNotes,
+            auditTrail: [statusEvent, ...(inc.auditTrail || [])],
           };
           // Keep selected incident synchronized
           if (selectedIncident?.id === incidentId) {
@@ -99,9 +113,15 @@ export default function DashboardPage() {
     setIncidents((prev) =>
       prev.map((inc) => {
         if (inc.id === incidentId) {
+          const aiEvent: AuditEvent = createAuditEvent(
+            "AI_ANALYSIS_ATTACHED",
+            `Google Gemini (${analysis.model})`,
+            `Structured AI triage attached. Category: ${analysis.category}, Urgency: ${analysis.suggested_urgency}.`
+          );
           const updated: Incident = {
             ...inc,
             geminiAnalysis: analysis,
+            auditTrail: [aiEvent, ...(inc.auditTrail || [])],
           };
           if (selectedIncident?.id === incidentId) {
             setSelectedIncident(updated);
@@ -317,6 +337,7 @@ export default function DashboardPage() {
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         onSubmitIncident={handleAddIncident}
+        existingIncidents={incidents}
       />
 
       {/* Interactive Action Toast Notification */}

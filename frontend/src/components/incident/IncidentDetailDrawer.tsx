@@ -13,10 +13,18 @@ import {
   BrainCircuit,
   ShieldCheck,
   AlertCircle,
+  AlertTriangle,
+  Gauge,
+  History,
 } from "lucide-react";
-import { Incident, IncidentStatus, RealGeminiAnalysis } from "../../types/incident";
+import {
+  Incident,
+  IncidentStatus,
+  RealGeminiAnalysis,
+} from "../../types/incident";
 import { SeverityBadge, StatusBadge } from "../ui/Badge";
 import { requestGeminiAnalysis } from "../../lib/geminiApi";
+import { calculatePriorityScore } from "../../lib/civicIntelligence";
 
 interface IncidentDetailDrawerProps {
   incident: Incident | null;
@@ -33,6 +41,7 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
 }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [reviewNoteText, setReviewNoteText] = useState("");
 
   // Close on Escape key
   useEffect(() => {
@@ -48,6 +57,16 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
   if (!incident) return null;
 
   const currentGeminiAnalysis = incident.geminiAnalysis;
+
+  const scoreResult = incident.priorityScore || calculatePriorityScore(
+    incident.category,
+    incident.severity,
+    incident.upvotes,
+    incident.locationLabel,
+    incident.reportedAt
+  );
+
+  const auditEvents = incident.auditTrail || [];
 
   const handleRunAnalysis = async () => {
     setIsAnalyzing(true);
@@ -177,6 +196,105 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
               </div>
             </div>
           )}
+
+          {/* Deterministic Priority Engine Breakdown */}
+          <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-cyan-400" />
+                <span className="font-semibold text-white text-xs">
+                  Deterministic Priority Engine
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="text-xs font-bold text-cyan-300 bg-cyan-950/70 border border-cyan-800/40 px-2 py-0.5 rounded">
+                  {scoreResult.score}/100
+                </span>
+                <span className="text-[10px] uppercase text-slate-400">
+                  [{scoreResult.tier}]
+                </span>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-300 font-mono bg-slate-950/60 p-2 rounded border border-slate-800/70">
+              {scoreResult.breakdown.explanation}
+            </p>
+            <div className="grid grid-cols-5 gap-1.5 text-center text-[10px] font-mono">
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800">
+                <span className="text-slate-500 block">Severity</span>
+                <span className="text-slate-200 font-bold">
+                  {scoreResult.breakdown.severityPts}/40
+                </span>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800">
+                <span className="text-slate-500 block">Hazard</span>
+                <span className="text-slate-200 font-bold">
+                  {scoreResult.breakdown.categoryPts}/25
+                </span>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800">
+                <span className="text-slate-500 block">Votes</span>
+                <span className="text-slate-200 font-bold">
+                  {scoreResult.breakdown.communityPts}/15
+                </span>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800">
+                <span className="text-slate-500 block">Location</span>
+                <span className="text-slate-200 font-bold">
+                  {scoreResult.breakdown.locationPts}/10
+                </span>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800">
+                <span className="text-slate-500 block">Aging</span>
+                <span className="text-slate-200 font-bold">
+                  {scoreResult.breakdown.agingPts}/10
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Potential Duplicate Flag Notice */}
+          {incident.duplicateAssessment?.risk &&
+            incident.duplicateAssessment.risk !== "none" && (
+              <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-800/60 text-xs text-amber-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="font-semibold text-amber-300">
+                      Potential Duplicate Flag
+                    </span>
+                  </div>
+                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-900/60 border border-amber-700/50 text-amber-300">
+                    {incident.duplicateAssessment.risk} Risk
+                  </span>
+                </div>
+                {incident.duplicateAssessment.matchedIncident && (
+                  <div className="text-[11px] text-slate-300 leading-relaxed bg-black/40 p-2.5 rounded border border-amber-900/40 space-y-1">
+                    <span className="font-mono text-amber-300 font-semibold block">
+                      Candidate Match:{" "}
+                      {incident.duplicateAssessment.matchedIncident.trackingCode}{" "}
+                      (
+                      {
+                        incident.duplicateAssessment.matchedIncident
+                          .similarityScore
+                      }
+                      % correlation)
+                    </span>
+                    <p className="text-slate-200">
+                      &ldquo;
+                      {incident.duplicateAssessment.matchedIncident.title}
+                      &rdquo;
+                    </p>
+                    <p className="text-slate-400 text-[10px]">
+                      {incident.duplicateAssessment.matchedIncident.reason}
+                    </p>
+                  </div>
+                )}
+                <p className="text-[10px] text-amber-400/80 font-mono">
+                  Reviewer Directive: Evaluate both incidents. If duplicate, mark
+                  &lsquo;Reject / Duplicate&rsquo; below. Not auto-merged.
+                </p>
+              </div>
+            )}
 
           {/* Google Gemini AI Structured Analysis Card */}
           <div className="p-4 rounded-xl bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/30 border border-cyan-500/40 space-y-3">
@@ -313,6 +431,57 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
               )}
             </div>
           )}
+
+          {/* Chronological Audit Trail Timeline */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <History className="w-3.5 h-3.5 text-cyan-400" />
+              <span>
+                Immutable Audit Trail ({auditEvents.length} Recorded Events)
+              </span>
+            </span>
+
+            {auditEvents.length === 0 ? (
+              <p className="text-[11px] text-slate-500 italic p-2 rounded bg-slate-900/30 border border-slate-800">
+                No formal audit events logged yet.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {auditEvents.map((evt) => (
+                  <div
+                    key={evt.id}
+                    className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80 text-xs space-y-1"
+                  >
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-cyan-400 font-semibold bg-cyan-950/60 border border-cyan-800/40 px-1.5 py-0.5 rounded">
+                        {evt.action}
+                      </span>
+                      <span className="text-slate-400">
+                        {new Date(evt.timestamp).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-slate-200 text-[11px] leading-relaxed">
+                      {evt.summary}
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-0.5">
+                      <span>Actor: {evt.actor}</span>
+                      {evt.newValue && (
+                        <span>
+                          {evt.previousValue ? `${evt.previousValue} → ` : ""}
+                          <strong className="text-slate-300">
+                            {evt.newValue}
+                          </strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Drawer Review Action Footer */}
@@ -326,16 +495,30 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
             </span>
           </div>
 
+          {/* Operator Action Note Input */}
+          <div className="space-y-1">
+            <input
+              id="drawer-review-note"
+              type="text"
+              value={reviewNoteText}
+              onChange={(e) => setReviewNoteText(e.target.value)}
+              placeholder="Operator review note (e.g., Verified via CCTV; repair crew deployed)"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 onUpdateStatus(
                   incident.id,
                   "dispatched",
-                  "Verified hazard and dispatched field team."
-                )
-              }
+                  reviewNoteText.trim() ||
+                    "Verified hazard and dispatched field team."
+                );
+                setReviewNoteText("");
+              }}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs transition-colors"
             >
               <Truck className="w-3.5 h-3.5" />
@@ -344,13 +527,14 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
 
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 onUpdateStatus(
                   incident.id,
                   "in_progress",
-                  "Repair crew on-site and active."
-                )
-              }
+                  reviewNoteText.trim() || "Repair crew on-site and active."
+                );
+                setReviewNoteText("");
+              }}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -359,13 +543,14 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
 
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 onUpdateStatus(
                   incident.id,
                   "resolved",
-                  "Municipal work order complete."
-                )
-              }
+                  reviewNoteText.trim() || "Municipal work order complete."
+                );
+                setReviewNoteText("");
+              }}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-medium text-xs transition-colors"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -374,13 +559,15 @@ export const IncidentDetailDrawer: React.FC<IncidentDetailDrawerProps> = ({
 
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 onUpdateStatus(
                   incident.id,
                   "rejected",
-                  "Marked as duplicate or non-actionable."
-                )
-              }
+                  reviewNoteText.trim() ||
+                    "Marked as duplicate or non-actionable."
+                );
+                setReviewNoteText("");
+              }}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-rose-900/60 hover:text-rose-200 text-slate-300 font-medium text-xs border border-slate-700 transition-colors"
             >
               <XCircle className="w-3.5 h-3.5" />

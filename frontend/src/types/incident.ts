@@ -22,6 +22,50 @@ export interface GeoCoordinate {
   district: string;
 }
 
+export interface ScoreBreakdown {
+  severityPts: number;
+  categoryPts: number;
+  communityPts: number;
+  locationPts: number;
+  agingPts: number;
+  explanation: string;
+}
+
+export interface PriorityScore {
+  score: number; // 0 - 100
+  tier: "critical" | "high" | "elevated" | "routine";
+  breakdown: ScoreBreakdown;
+}
+
+export interface MatchedDuplicate {
+  id: string;
+  trackingCode: string;
+  title: string;
+  similarityScore: number;
+  reason: string;
+}
+
+export interface DuplicateAssessment {
+  risk: "none" | "possible" | "high";
+  matchedIncident?: MatchedDuplicate;
+}
+
+export interface AuditEvent {
+  id: string;
+  timestamp: string; // ISO string
+  actor: string; // "Public Citizen (Web Client)", "Municipal Dispatcher", "System Triage Engine"
+  action:
+    | "SUBMITTED"
+    | "STATUS_CHANGED"
+    | "AI_ANALYSIS_ATTACHED"
+    | "PRIORITY_RECALCULATED"
+    | "DUPLICATE_FLAGGED"
+    | "NOTE_RECORDED";
+  summary: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
 export interface Incident {
   id: string;
   trackingCode: string;
@@ -43,6 +87,9 @@ export interface Incident {
     duplicateRisk: "none" | "possible" | "high";
   };
   geminiAnalysis?: RealGeminiAnalysis;
+  priorityScore?: PriorityScore;
+  duplicateAssessment?: DuplicateAssessment;
+  auditTrail?: AuditEvent[];
   reviewNotes?: string;
   assignedDepartment?: string;
 }

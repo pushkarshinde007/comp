@@ -181,7 +181,7 @@ export const IncidentMapPanel: React.FC<IncidentMapPanelProps> = ({
         {/* Explicit Map Disclaimer */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-slate-400 flex items-center gap-1.5 shadow-sm">
           <Info className="w-3 h-3 text-cyan-400" />
-          <span>Simulated Grid &bull; Real GIS integration arrives in Phase 2</span>
+          <span>Simulated City Grid &bull; Google Maps Platform Integration Staged</span>
         </div>
 
         {/* Positioned Markers */}
@@ -226,11 +226,16 @@ export const IncidentMapPanel: React.FC<IncidentMapPanelProps> = ({
 
               {/* Marker Hover Tooltip */}
               {(isHovered || isSelected) && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2.5 rounded-lg bg-slate-950/95 border border-slate-700 shadow-2xl text-left pointer-events-none z-30">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2.5 rounded-lg bg-slate-950/95 border border-slate-700 shadow-2xl text-left pointer-events-none z-30">
                   <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="font-mono text-[10px] text-cyan-400">
-                      {incident.trackingCode}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono text-[10px] text-cyan-400">
+                        {incident.trackingCode}
+                      </span>
+                      <span className="font-mono text-[9px] text-cyan-300 bg-cyan-950/80 px-1 py-0.2 rounded border border-cyan-800/40">
+                        {incident.priorityScore?.score ?? 0} pts
+                      </span>
+                    </div>
                     <SeverityBadge severity={incident.severity} size="sm" />
                   </div>
                   <p className="text-xs font-semibold text-white line-clamp-1">
@@ -249,9 +254,12 @@ export const IncidentMapPanel: React.FC<IncidentMapPanelProps> = ({
         {selectedIncident && (
           <div className="absolute bottom-3 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 p-3 rounded-xl bg-slate-950/95 border border-cyan-500/40 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 z-20">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                 <span className="font-mono text-[11px] text-cyan-400 font-semibold">
                   {selectedIncident.trackingCode}
+                </span>
+                <span className="font-mono text-[10px] text-cyan-300 bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/40">
+                  {selectedIncident.priorityScore?.score ?? 0} pts
                 </span>
                 <CategoryBadge category={selectedIncident.category} size="sm" />
                 <SeverityBadge severity={selectedIncident.severity} size="sm" />

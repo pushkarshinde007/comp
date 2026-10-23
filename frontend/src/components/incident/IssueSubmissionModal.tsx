@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   X,
   Upload,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   MapPin,
   Sparkles,
@@ -12,26 +13,36 @@ import {
   BrainCircuit,
   ShieldCheck,
   Check,
+  Gauge,
 } from "lucide-react";
 import {
   Incident,
   IncidentCategory,
   IncidentSeverity,
   RealGeminiAnalysis,
+  DuplicateAssessment,
+  AuditEvent,
 } from "../../types/incident";
 import { CATEGORY_DEFINITIONS } from "../../data/mockIncidents";
 import { requestGeminiAnalysis } from "../../lib/geminiApi";
+import {
+  calculatePriorityScore,
+  detectPotentialDuplicates,
+  createAuditEvent,
+} from "../../lib/civicIntelligence";
 
 interface IssueSubmissionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmitIncident: (newIncident: Incident) => void;
+  existingIncidents?: Incident[];
 }
 
 export const IssueSubmissionModal: React.FC<IssueSubmissionModalProps> = ({
   isOpen,
   onClose,
   onSubmitIncident,
+  existingIncidents = [],
 }) => {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<IncidentCategory>("road_hazard");
@@ -51,6 +62,32 @@ export const IssueSubmissionModal: React.FC<IssueSubmissionModalProps> = ({
   const [geminiAnalysis, setGeminiAnalysis] = useState<RealGeminiAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [aiApplied, setAiApplied] = useState(false);
+
+  // Real-time potential duplicate assessment against existing registry
+  const duplicateAssessment: DuplicateAssessment = useMemo(() => {
+    if ((!title.trim() && !description.trim()) || existingIncidents.length === 0) {
+      return { risk: "none" };
+    }
+    return detectPotentialDuplicates(
+      {
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        locationLabel: locationLabel.trim(),
+      },
+      existingIncidents
+    );
+  }, [title, description, category, locationLabel, existingIncidents]);
+
+  // Real-time transparent priority score estimation
+  const estimatedPriority = useMemo(() => {
+    return calculatePriorityScore(
+      category,
+      severity,
+      1,
+      locationLabel.trim()
+    );
+  }, [category, severity, locationLabel]);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +221,47 @@ export const IssueSubmissionModal: React.FC<IssueSubmissionModalProps> = ({
 
     setTimeout(() => {
       const codeNum = Math.floor(1000 + Math.random() * 9000);
+      const priorityScore = calculatePriorityScore(
+        category,
+        severity,
+        1,
+        locationLabel.trim(),
+        new Date().toISOString()
+      );
+
+      const initialAuditTrail: AuditEvent[] = [
+        createAuditEvent(
+          "SUBMITTED",
+          "Public Citizen (Web Client)",
+          `Incident submitted in category '${category}' with urgency '${severity}'.`
+        ),
+        createAuditEvent(
+          "PRIORITY_RECALCULATED",
+          "CivicSignal AI Engine",
+          `Deterministic priority score evaluated to ${priorityScore.score}/100 [${priorityScore.tier.toUpperCase()}].`
+        ),
+      ];
+
+      if (geminiAnalysis) {
+        initialAuditTrail.push(
+          createAuditEvent(
+            "AI_ANALYSIS_ATTACHED",
+            `Google Gemini (${geminiAnalysis.model})`,
+            `Multimodal AI analysis attached. Category recommendation: ${geminiAnalysis.category}, Urgency: ${geminiAnalysis.suggested_urgency}.`
+          )
+        );
+      }
+
+      if (duplicateAssessment.risk !== "none" && duplicateAssessment.matchedIncident) {
+        initialAuditTrail.push(
+          createAuditEvent(
+            "DUPLICATE_FLAGGED",
+            "CivicSignal AI Engine",
+            `Flagged as potential duplicate (${duplicateAssessment.matchedIncident.similarityScore}% match) with ${duplicateAssessment.matchedIncident.trackingCode}. Awaiting operator review; not auto-merged.`
+          )
+        );
+      }
+
       const newInc: Incident = {
         id: `inc-${Date.now()}`,
         trackingCode: `CIV-${codeNum}`,
@@ -203,6 +281,9 @@ export const IssueSubmissionModal: React.FC<IssueSubmissionModalProps> = ({
         upvotes: 1,
         imageUrl: imagePreview || undefined,
         geminiAnalysis: geminiAnalysis || undefined,
+        priorityScore,
+        duplicateAssessment,
+        auditTrail: initialAuditTrail,
       };
 
       onSubmitIncident(newInc);
@@ -466,6 +547,53 @@ export const IssueSubmissionModal: React.FC<IssueSubmissionModalProps> = ({
               {errors.image && (
                 <p className="mt-1 text-xs text-rose-400">{errors.image}</p>
               )}
+            </div>
+
+            {/* Real-Time Duplicate Detection Alert */}
+            {duplicateAssessment.risk !== "none" && duplicateAssessment.matchedIncident && (
+              <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-800/60 text-xs text-amber-200 flex items-start gap-2.5 animate-in fade-in duration-150">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-amber-300">
+                      Potential Duplicate Flag ({duplicateAssessment.matchedIncident.similarityScore}% match with {duplicateAssessment.matchedIncident.trackingCode})
+                    </span>
+                    <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-900/60 border border-amber-700/50 text-amber-300">
+                      {duplicateAssessment.risk} Risk
+                    </span>
+                  </div>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    &ldquo;{duplicateAssessment.matchedIncident.title}&rdquo; — {duplicateAssessment.matchedIncident.reason}
+                  </p>
+                  <p className="text-[10px] text-amber-400/80 font-mono">
+                    System Policy: Similar reports are flagged for authorized human review; they are NEVER automatically merged.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Transparent Priority Score Estimation Preview */}
+            <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-800 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-cyan-400" />
+                <div>
+                  <span className="font-medium text-slate-200 block text-xs">
+                    Deterministic Priority Score
+                  </span>
+                  <span className="text-[11px] text-slate-400 block">
+                    Calculated from urgency baseline, hazard factors, and location risk
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="font-mono font-bold text-sm text-cyan-300">
+                  {estimatedPriority.score}
+                  <span className="text-xs text-slate-500 font-normal">/100</span>
+                </span>
+                <span className="text-[10px] uppercase font-mono block text-slate-400">
+                  {estimatedPriority.tier} queue
+                </span>
+              </div>
             </div>
 
             {/* Gemini Analysis Action Bar */}

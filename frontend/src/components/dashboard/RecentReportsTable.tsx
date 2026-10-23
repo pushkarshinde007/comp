@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Eye, Inbox } from "lucide-react";
+import { Eye, Inbox, AlertTriangle } from "lucide-react";
 import {
   Incident,
   IncidentCategory,
@@ -33,6 +33,12 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
   const [selectedSeverity, setSelectedSeverity] = useState<
     "all" | IncidentSeverity
   >("all");
+  const [duplicateFilter, setDuplicateFilter] = useState<
+    "all" | "duplicates_only"
+  >("all");
+  const [sortBy, setSortBy] = useState<"priority" | "newest" | "upvotes">(
+    "priority"
+  );
 
   const filteredIncidents = incidents.filter((inc) => {
     // Search match
@@ -59,13 +65,36 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
       return false;
     }
 
+    // Potential Duplicate filter
+    if (duplicateFilter === "duplicates_only") {
+      const hasDup =
+        inc.duplicateAssessment?.risk &&
+        inc.duplicateAssessment.risk !== "none";
+      if (!hasDup) return false;
+    }
+
     return true;
+  });
+
+  const sortedIncidents = [...filteredIncidents].sort((a, b) => {
+    if (sortBy === "priority") {
+      const scoreA = a.priorityScore?.score ?? 0;
+      const scoreB = b.priorityScore?.score ?? 0;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime();
+    }
+    if (sortBy === "upvotes") {
+      return b.upvotes - a.upvotes;
+    }
+    return new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime();
   });
 
   const clearFilters = () => {
     setSelectedCategory("all");
     setSelectedStatus("all");
     setSelectedSeverity("all");
+    setDuplicateFilter("all");
+    setSortBy("priority");
     onSearchChange("");
   };
 
@@ -73,7 +102,9 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
     searchQuery.trim() !== "" ||
     selectedCategory !== "all" ||
     selectedStatus !== "all" ||
-    selectedSeverity !== "all";
+    selectedSeverity !== "all" ||
+    duplicateFilter !== "all" ||
+    sortBy !== "priority";
 
   return (
     <div className="rounded-xl bg-slate-900/60 border border-slate-800 shadow-sm overflow-hidden flex flex-col">
@@ -144,6 +175,33 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
             <option value="low">Low</option>
           </select>
 
+          {/* Potential Duplicate Filter */}
+          <select
+            value={duplicateFilter}
+            onChange={(e) =>
+              setDuplicateFilter(e.target.value as "all" | "duplicates_only")
+            }
+            className="h-8 px-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+            aria-label="Filter by Duplicate Risk"
+          >
+            <option value="all">All Risk Profiles</option>
+            <option value="duplicates_only">Flagged Duplicates Only</option>
+          </select>
+
+          {/* Sort By Dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) =>
+              setSortBy(e.target.value as "priority" | "newest" | "upvotes")
+            }
+            className="h-8 px-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+            aria-label="Sort Incidents"
+          >
+            <option value="priority">Sort: Priority Score</option>
+            <option value="newest">Sort: Newest First</option>
+            <option value="upvotes">Sort: Most Upvotes</option>
+          </select>
+
           {hasActiveFilters && (
             <button
               type="button"
@@ -162,6 +220,7 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/70 text-slate-400 font-mono text-[11px] uppercase tracking-wider">
               <th className="py-3 px-4">Code</th>
+              <th className="py-3 px-4">Priority Score</th>
               <th className="py-3 px-4">Incident Title &amp; Location</th>
               <th className="py-3 px-4">Category</th>
               <th className="py-3 px-4">Severity</th>
@@ -171,9 +230,9 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {filteredIncidents.length === 0 ? (
+            {sortedIncidents.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-500">
+                <td colSpan={8} className="py-12 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <Inbox className="w-8 h-8 text-slate-600" />
                     <p className="text-sm font-medium text-slate-300">
@@ -195,7 +254,7 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                 </td>
               </tr>
             ) : (
-              filteredIncidents.map((incident) => {
+              sortedIncidents.map((incident) => {
                 const date = new Date(incident.reportedAt).toLocaleDateString(
                   "en-US",
                   {
@@ -206,14 +265,37 @@ export const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                   }
                 );
 
+                const hasDuplicateRisk =
+                  incident.duplicateAssessment?.risk &&
+                  incident.duplicateAssessment.risk !== "none";
+
                 return (
                   <tr
                     key={incident.id}
                     onClick={() => onSelectIncident(incident)}
                     className="hover:bg-slate-800/40 cursor-pointer transition-colors group"
                   >
-                    <td className="py-3 px-4 font-mono font-semibold text-cyan-400">
-                      {incident.trackingCode}
+                    <td className="py-3 px-4 font-mono font-semibold text-cyan-400 whitespace-nowrap">
+                      <span>{incident.trackingCode}</span>
+                      {hasDuplicateRisk && (
+                        <span
+                          className="ml-1.5 px-1 py-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-800/50 text-[10px] inline-flex items-center gap-0.5"
+                          title="Potential duplicate flagged for review"
+                        >
+                          <AlertTriangle className="w-2.5 h-2.5" />
+                          <span>DUP</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <span className="font-bold text-xs text-cyan-300 bg-cyan-950/70 border border-cyan-800/40 px-1.5 py-0.5 rounded">
+                          {incident.priorityScore?.score ?? 0}
+                        </span>
+                        <span className="text-[10px] text-slate-500 uppercase">
+                          [{incident.priorityScore?.tier ?? "routine"}]
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 max-w-xs">
                       <div className="font-medium text-white truncate group-hover:text-cyan-300 transition-colors">

@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock, MapPin, ShieldAlert } from "lucide-react";
+import { Clock, MapPin, ShieldAlert, AlertTriangle } from "lucide-react";
 import { Incident } from "../../types/incident";
 import { SeverityBadge, StatusBadge } from "../ui/Badge";
 
@@ -21,18 +21,20 @@ export const PriorityQueue: React.FC<PriorityQueueProps> = ({
   incidents,
   onSelectIncident,
 }) => {
-  // Filter for critical and high priority incidents that aren't resolved or rejected
+  // Sort priority queue deterministically by computed priority score descending
   const priorityIncidents = incidents
     .filter(
       (inc) =>
-        (inc.severity === "critical" || inc.severity === "high") &&
+        (inc.severity === "critical" ||
+          inc.severity === "high" ||
+          (inc.priorityScore?.score ?? 0) >= 60) &&
         inc.status !== "resolved" &&
         inc.status !== "rejected"
     )
     .sort((a, b) => {
-      // Sort critical first, then newest
-      if (a.severity === "critical" && b.severity !== "critical") return -1;
-      if (b.severity === "critical" && a.severity !== "critical") return 1;
+      const scoreA = a.priorityScore?.score ?? 0;
+      const scoreB = b.priorityScore?.score ?? 0;
+      if (scoreB !== scoreA) return scoreB - scoreA;
       return new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime();
     });
 
@@ -48,7 +50,7 @@ export const PriorityQueue: React.FC<PriorityQueueProps> = ({
               Urgent Priority Queue
             </h2>
             <p className="text-[11px] text-slate-400">
-              Active critical &amp; high hazard incidents
+              Ranked by deterministic score algorithm
             </p>
           </div>
         </div>
@@ -65,6 +67,10 @@ export const PriorityQueue: React.FC<PriorityQueueProps> = ({
         ) : (
           priorityIncidents.map((incident) => {
             const isCritical = incident.severity === "critical";
+            const score = incident.priorityScore?.score ?? 0;
+            const hasDuplicateRisk =
+              incident.duplicateAssessment?.risk &&
+              incident.duplicateAssessment.risk !== "none";
 
             return (
               <div
@@ -88,7 +94,18 @@ export const PriorityQueue: React.FC<PriorityQueueProps> = ({
                     <span className="font-mono text-[11px] font-semibold text-cyan-400">
                       {incident.trackingCode}
                     </span>
+                    <span className="font-mono text-[10px] font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-800/40 px-1.5 py-0.5 rounded">
+                      {score} pts
+                    </span>
                     <SeverityBadge severity={incident.severity} size="sm" />
+                    {hasDuplicateRisk && (
+                      <span
+                        className="p-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800/50"
+                        title="Potential duplicate flagged"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                      </span>
+                    )}
                   </div>
                   <span className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
                     <Clock className="w-3 h-3 text-slate-500" />

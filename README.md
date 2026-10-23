@@ -20,14 +20,17 @@ Municipal public works departments are flooded with unstructured, incomplete, an
 | Feature | Status | Implementation Details |
 | :--- | :--- | :--- |
 | **Operations Dashboard** | **Genuinely Works** | Full responsive dark interface with KPI cards, spatial city map panel, priority queue, filterable report table, and activity summary. |
-| **Citizen Issue Submission** | **Genuinely Works** | Client-side validation, category selection, address input, and photo attachment with in-browser previews. |
+| **Deterministic Priority Scoring** | **Genuinely Works** | Rules-based priority score (0-100) computed from severity, category hazard factor, community upvotes, location risk, and aging. |
+| **Potential Duplicate Detection** | **Genuinely Works** | Token Jaccard similarity, category match, and location proximity flag similar reports for review; strictly non-auto-merging. |
+| **Immutable Audit Trail** | **Genuinely Works** | Chronological timeline records every action (`SUBMITTED`, `AI_ANALYSIS_ATTACHED`, `PRIORITY_RECALCULATED`, `STATUS_CHANGED`) with actor and timestamp. |
+| **Citizen Issue Submission** | **Genuinely Works** | Client-side validation, duplicate warning, priority preview, address input, and photo attachment with in-browser previews. |
 | **Real Gemini AI Analysis** | **Genuinely Works** | Backend integration using official `google-genai` SDK (`POST /api/v1/analyze-issue`). Analyzes description + photo bytes with Pydantic structured output. |
-| **Deterministic Review Actions** | **Genuinely Works** | Reviewers can inspect reports, review AI findings, and update statuses (*Verify & Dispatch*, *In Progress*, *Resolve*, *Reject*). |
+| **Deterministic Review Actions** | **Genuinely Works** | Reviewers can inspect reports, review AI findings, type action notes, and update statuses (*Verify & Dispatch*, *In Progress*, *Resolve*, *Reject*). |
 | **Image Verification** | **Genuinely Works** | Backend validates image binary bytes using Pillow (`Image.open().verify()`) to prevent corrupted or spoofed files. |
 | **Graceful AI Fallback** | **Genuinely Works** | If Gemini API key is unconfigured or blocked, clear informational banners explain the condition. Never displays fabricated AI responses. |
 | **Data Persistence** | **Demo / In-Memory** | Session state is stored in client memory with initial mock data (`INITIAL_MOCK_INCIDENTS`). Cloud Firestore persistence is stubbed for future cloud release. |
 | **Authentication** | **Demo / Simulated** | Simulated operator role ("Municipal Admin / Dispatcher"). Firebase Authentication token validation is reserved for future production deployment. |
-| **GIS Mapping** | **Interactive Mock** | Custom SVG grid city map with interactive sector markers. Live Google Maps JavaScript API SDK is documented in future roadmap. |
+| **GIS Mapping** | **Interactive Mock** | Custom SVG grid city map with interactive sector markers and priority score tooltips. Google Maps JavaScript API SDK is documented in future roadmap. |
 
 ---
 
@@ -135,34 +138,40 @@ Frontend will be available at `http://localhost:3000`.
 
 ## 6. Deterministic Verification & Test Results
 
-### Backend Automated Test Suite (21 passed)
+### Backend Automated Test Suite (27 passed)
 ```
 backend/.venv/bin/pytest backend/tests -v
 ```
 ```text
-backend/tests/test_analysis.py::test_analyze_issue_missing_api_key PASSED          [  4%]
-backend/tests/test_analysis.py::test_analyze_issue_empty_request_rejected PASSED   [  9%]
-backend/tests/test_analysis.py::test_analyze_issue_oversized_description_rejected PASSED [ 14%]
-backend/tests/test_analysis.py::test_analyze_issue_unsupported_mime_type_rejected PASSED [ 19%]
-backend/tests/test_analysis.py::test_analyze_issue_corrupted_image_rejected PASSED [ 23%]
-backend/tests/test_analysis.py::test_analyze_issue_oversized_image_rejected PASSED [ 28%]
-backend/tests/test_analysis.py::test_analyze_issue_valid_structured_analysis PASSED [ 33%]
-backend/tests/test_analysis.py::test_analyze_issue_gemini_quota_error PASSED      [ 38%]
-backend/tests/test_analysis.py::test_analyze_issue_gemini_permission_error PASSED [ 42%]
-backend/tests/test_analysis.py::test_analyze_issue_gemini_timeout_error PASSED    [ 47%]
-backend/tests/test_analysis.py::test_analyze_issue_gemini_provider_error PASSED   [ 52%]
-backend/tests/test_analysis.py::test_system_prompt_enforces_safety_and_integrity PASSED [ 57%]
-backend/tests/test_analysis.py::test_ai_output_cannot_directly_resolve_or_approve PASSED [ 61%]
-backend/tests/test_config.py::test_cors_origins_parsing PASSED                    [ 66%]
-backend/tests/test_config.py::test_cors_origins_empty PASSED                      [ 71%]
-backend/tests/test_config.py::test_default_settings PASSED                        [ 76%]
-backend/tests/test_health.py::test_root_endpoint_returns_200 PASSED               [ 80%]
-backend/tests/test_health.py::test_health_check_returns_200 PASSED                [ 85%]
-backend/tests/test_health.py::test_health_check_does_not_reveal_secrets PASSED   [ 90%]
-backend/tests/test_cors_headers_allowed_origin PASSED                              [ 95%]
-backend/tests/test_cors_headers_disallowed_origin PASSED                           [100%]
+backend/tests/test_analysis.py::test_analyze_issue_missing_api_key PASSED          [  3%]
+backend/tests/test_analysis.py::test_analyze_issue_empty_request_rejected PASSED   [  7%]
+backend/tests/test_analysis.py::test_analyze_issue_oversized_description_rejected PASSED [ 11%]
+backend/tests/test_analysis.py::test_analyze_issue_unsupported_mime_type_rejected PASSED [ 14%]
+backend/tests/test_analysis.py::test_analyze_issue_corrupted_image_rejected PASSED [ 18%]
+backend/tests/test_analysis.py::test_analyze_issue_oversized_image_rejected PASSED [ 22%]
+backend/tests/test_analysis.py::test_analyze_issue_valid_structured_analysis PASSED [ 25%]
+backend/tests/test_analysis.py::test_analyze_issue_gemini_quota_error PASSED      [ 29%]
+backend/tests/test_analysis.py::test_analyze_issue_gemini_permission_error PASSED [ 33%]
+backend/tests/test_analysis.py::test_analyze_issue_gemini_timeout_error PASSED    [ 37%]
+backend/tests/test_analysis.py::test_analyze_issue_gemini_provider_error PASSED   [ 40%]
+backend/tests/test_analysis.py::test_system_prompt_enforces_safety_and_integrity PASSED [ 44%]
+backend/tests/test_analysis.py::test_ai_output_cannot_directly_resolve_or_approve PASSED [ 48%]
+backend/tests/test_config.py::test_cors_origins_parsing PASSED                    [ 51%]
+backend/tests/test_config.py::test_cors_origins_empty PASSED                      [ 55%]
+backend/tests/test_config.py::test_default_settings PASSED                        [ 59%]
+backend/tests/test_health.py::test_root_endpoint_returns_200 PASSED               [ 62%]
+backend/tests/test_health.py::test_health_check_returns_200 PASSED                [ 66%]
+backend/tests/test_health.py::test_health_check_does_not_reveal_secrets PASSED   [ 70%]
+backend/tests/test_cors_headers_allowed_origin PASSED                              [ 74%]
+backend/tests/test_cors_headers_disallowed_origin PASSED                           [ 77%]
+backend/tests/test_intelligence.py::test_calculate_priority_score_critical PASSED [ 81%]
+backend/tests/test_intelligence.py::test_calculate_priority_score_routine PASSED  [ 85%]
+backend/tests/test_intelligence.py::test_detect_duplicate_high_risk PASSED        [ 88%]
+backend/tests/test_intelligence.py::test_detect_duplicate_no_match PASSED          [ 92%]
+backend/tests/test_intelligence.py::test_api_calculate_priority_endpoint PASSED  [ 96%]
+backend/tests/test_intelligence.py::test_api_detect_duplicate_endpoint PASSED     [100%]
 
-======================== 21 passed, 1 warning in 0.23s =========================
+======================== 27 passed, 1 warning in 0.22s =========================
 ```
 
 ### Frontend Lint & Build
